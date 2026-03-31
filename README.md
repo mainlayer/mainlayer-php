@@ -1,6 +1,6 @@
 # Mainlayer PHP SDK
 
-Official PHP SDK for [Mainlayer](https://mainlayer.xyz) — payment infrastructure for AI agents.
+Official PHP SDK for [Mainlayer](https://mainlayer.fr) — payment infrastructure for AI agents.
 
 ## Requirements
 
