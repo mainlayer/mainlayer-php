@@ -34,6 +34,20 @@ class PaymentsResource
     }
 
     /**
+     * Retrieves a single payment by ID.
+     *
+     * @param string $id The payment ID
+     *
+     * @return array<string, mixed>
+     *
+     * @throws MainlayerException
+     */
+    public function retrieve(string $id): array
+    {
+        return $this->http->get("/payments/{$id}");
+    }
+
+    /**
      * Returns a list of all payments for the authenticated account.
      *
      * @param  array<string, mixed> $query Optional query parameters.

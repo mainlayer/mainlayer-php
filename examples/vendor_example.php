@@ -5,12 +5,14 @@ declare(strict_types=1);
 /**
  * Mainlayer PHP SDK — Vendor Example
  *
- * Demonstrates the full vendor workflow:
- *   1. Create a resource
- *   2. Register a webhook to be notified on payments
- *   3. Check revenue analytics
- *   4. Issue a discount coupon
- *   5. Clean up
+ * Demonstrates the complete vendor workflow:
+ *   1. Register vendor (optional)
+ *   2. Create a monetizable resource
+ *   3. Activate the resource
+ *   4. Create subscription plans
+ *   5. Get webhook secret
+ *   6. View analytics
+ *   7. List resources and plans
  *
  * Run: MAINLAYER_API_KEY=ml_xxx php examples/vendor_example.php
  */
@@ -25,76 +27,95 @@ $client = new MainlayerClient($apiKey);
 
 try {
     // -------------------------------------------------------------------------
-    // 1. Create a resource
+    // 1. Register vendor (optional)
     // -------------------------------------------------------------------------
-    echo "Creating resource...\n";
+    echo "Registering vendor with wallet...\n";
+    $vendor = $client->vendors->register([
+        'wallet_address' => '0x742d35Cc6634C0532925a3b844Bc9e7595f42bE',
+        'nonce'          => 'nonce_' . time(),
+        'signed_message' => '0xSignedMessageExample',
+    ]);
+    echo "Vendor ID: {$vendor['id']}\n\n";
+
+    // -------------------------------------------------------------------------
+    // 2. Create a resource
+    // -------------------------------------------------------------------------
+    echo "Creating monetizable resource...\n";
 
     $resource = $client->resources->create([
-        'slug'         => 'vendor-demo-sentiment-api',
-        'type'         => 'api',
-        'price_usdc'   => 0.02,
-        'fee_model'    => 'pay_per_call',
-        'description'  => 'Real-time sentiment analysis for any text input.',
-        'callback_url' => 'https://your-service.example.com/mainlayer/callback',
+        'slug'        => 'ai-summarizer-' . time(),
+        'type'        => 'api',
+        'price_usdc'  => 0.05,
+        'fee_model'   => 'pay_per_call',
+        'description' => 'Summarize any text using GPT-4',
     ]);
 
     $resourceId = $resource['id'];
-    echo "Resource created: {$resourceId} (slug: {$resource['slug']})\n";
+    echo "Resource created: {$resourceId}\n";
+    echo "  Slug: {$resource['slug']}\n";
+    echo "  Price: \${$resource['price_usdc']} per call\n\n";
 
     // -------------------------------------------------------------------------
-    // 2. Register a webhook
+    // 3. Activate the resource
     // -------------------------------------------------------------------------
-    echo "\nRegistering webhook...\n";
+    echo "Activating resource...\n";
+    $client->resources->activate($resourceId);
+    echo "Resource activated!\n\n";
 
-    $webhook = $client->webhooks->create([
-        'url'    => 'https://your-service.example.com/mainlayer/events',
-        'events' => ['payment.completed', 'payment.failed', 'entitlement.granted'],
+    // -------------------------------------------------------------------------
+    // 4. Create subscription plans
+    // -------------------------------------------------------------------------
+    echo "Creating subscription plans...\n";
+
+    $monthlyPlan = $client->resources->createPlan($resourceId, [
+        'interval'       => 'month',
+        'interval_count' => 1,
+        'price_usdc'     => 9.99,
     ]);
+    echo "Monthly Plan created: {$monthlyPlan['id']} (\$9.99/month)\n";
 
-    echo "Webhook registered: {$webhook['id']}\n";
+    $annualPlan = $client->resources->createPlan($resourceId, [
+        'interval'       => 'year',
+        'interval_count' => 1,
+        'price_usdc'     => 99.99,
+    ]);
+    echo "Annual Plan created: {$annualPlan['id']} (\$99.99/year)\n\n";
 
     // -------------------------------------------------------------------------
-    // 3. List existing resources
+    // 5. Get webhook secret
     // -------------------------------------------------------------------------
-    echo "\nListing all resources...\n";
+    echo "Getting webhook secret...\n";
+    $secret = $client->resources->webhookSecret($resourceId);
+    echo "Webhook Secret: {$secret['secret']} (store securely!)\n\n";
 
+    // -------------------------------------------------------------------------
+    // 6. View analytics
+    // -------------------------------------------------------------------------
+    echo "Fetching analytics...\n";
+    $analytics = $client->analytics->get();
+    echo "Total Revenue: \${$analytics['total_revenue_usdc'] ?? '0.00'}\n";
+    echo "Total Payments: " . ($analytics['total_payments'] ?? 0) . "\n\n";
+
+    // -------------------------------------------------------------------------
+    // 7. List all resources
+    // -------------------------------------------------------------------------
+    echo "Your resources:\n";
     $allResources = $client->resources->list();
-    echo count($allResources) . " resource(s) found:\n";
     foreach ($allResources as $r) {
-        echo "  - [{$r['id']}] {$r['slug']} @ \${$r['price_usdc']}/call\n";
+        echo "  - {$r['slug']}: \${$r['price_usdc']} ({$r['fee_model']})\n";
+    }
+    echo "\n";
+
+    // -------------------------------------------------------------------------
+    // 8. List all plans for this resource
+    // -------------------------------------------------------------------------
+    echo "Subscription plans for {$resourceId}:\n";
+    $plans = $client->resources->plans($resourceId);
+    foreach ($plans as $plan) {
+        echo "  - {$plan['id']}: \${$plan['price_usdc']}/{$plan['interval']}\n";
     }
 
-    // -------------------------------------------------------------------------
-    // 4. Revenue analytics
-    // -------------------------------------------------------------------------
-    echo "\nFetching revenue analytics...\n";
-
-    $analytics = $client->analytics->get();
-    echo "Total revenue : \$" . number_format((float) ($analytics['total_revenue'] ?? 0), 4) . "\n";
-    echo "Total payments: " . ($analytics['total_payments'] ?? 0) . "\n";
-
-    // -------------------------------------------------------------------------
-    // 5. Create a discount coupon
-    // -------------------------------------------------------------------------
-    echo "\nCreating coupon...\n";
-
-    $coupon = $client->coupons->create([
-        'code'         => 'LAUNCH50',
-        'discount_pct' => 50,
-        'resource_id'  => $resourceId,
-        'max_uses'     => 100,
-    ]);
-
-    echo "Coupon created: {$coupon['code']} ({$coupon['discount_pct']}% off)\n";
-
-    // -------------------------------------------------------------------------
-    // 6. Clean up
-    // -------------------------------------------------------------------------
-    echo "\nDeleting resource...\n";
-    $client->resources->delete($resourceId);
-    echo "Resource {$resourceId} deleted.\n";
-
-    echo "\nVendor example completed successfully.\n";
+    echo "\nVendor example completed successfully!\n";
 
 } catch (MainlayerException $e) {
     echo "Mainlayer error [{$e->getStatusCode()}]: {$e->getMessage()}\n";

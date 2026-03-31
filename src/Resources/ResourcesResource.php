@@ -112,4 +112,122 @@ class ResourcesResource
     {
         return $this->http->get("/resources/public/{$id}");
     }
+
+    /**
+     * Activate a resource to make it eligible for payments.
+     *
+     * @return array<string, mixed> The updated resource object
+     *
+     * @throws MainlayerException
+     */
+    public function activate(string $id): array
+    {
+        return $this->http->patch("/resources/{$id}/activate", []);
+    }
+
+    /**
+     * Get the current credit quota for a resource.
+     *
+     * @return array<string, mixed> Quota object
+     *
+     * @throws MainlayerException
+     */
+    public function quota(string $id): array
+    {
+        return $this->http->get("/resources/{$id}/quota");
+    }
+
+    /**
+     * Update the credit quota for a resource.
+     *
+     * @param array{available_credits: int} $params
+     *
+     * @return array<string, mixed>
+     *
+     * @throws MainlayerException
+     */
+    public function updateQuota(string $id, array $params): array
+    {
+        return $this->http->put("/resources/{$id}/quota", $params);
+    }
+
+    /**
+     * Get the webhook secret for verifying payment notifications.
+     *
+     * @return array{secret: string}
+     *
+     * @throws MainlayerException
+     */
+    public function webhookSecret(string $id): array
+    {
+        return $this->http->get("/resources/{$id}/webhook-secret");
+    }
+
+    /**
+     * List all subscription plans for a resource.
+     *
+     * @param array<string, mixed> $query Optional query parameters
+     *
+     * @return array<int, array<string, mixed>>
+     *
+     * @throws MainlayerException
+     */
+    public function plans(string $id, array $query = []): array
+    {
+        $response = $this->http->get("/resources/{$id}/plans", $query);
+
+        /** @var array<int, array<string, mixed>> */
+        return $response['data'] ?? $response;
+    }
+
+    /**
+     * Create a new subscription plan for a resource.
+     *
+     * @param array{
+     *     interval: 'day'|'week'|'month'|'year',
+     *     interval_count: int,
+     *     price_usdc: float,
+     * } $params
+     *
+     * @return array<string, mixed> The created plan object
+     *
+     * @throws MainlayerException
+     */
+    public function createPlan(string $id, array $params): array
+    {
+        return $this->http->post("/resources/{$id}/plans", $params);
+    }
+
+    /**
+     * Update an existing subscription plan.
+     *
+     * @param string $planId The plan ID
+     * @param array{
+     *     interval?: 'day'|'week'|'month'|'year',
+     *     interval_count?: int,
+     *     price_usdc?: float,
+     * } $params
+     *
+     * @return array<string, mixed> The updated plan object
+     *
+     * @throws MainlayerException
+     */
+    public function updatePlan(string $id, string $planId, array $params): array
+    {
+        return $this->http->patch("/resources/{$id}/plans/{$planId}", $params);
+    }
+
+    /**
+     * Delete a subscription plan.
+     *
+     * @param string $planId The plan ID
+     *
+     * @return array<string, mixed> Confirmation object
+     *
+     * @throws MainlayerException
+     */
+    public function deletePlan(string $id, string $planId): array
+    {
+        return $this->http->delete("/resources/{$id}/plans/{$planId}");
+    }
 }

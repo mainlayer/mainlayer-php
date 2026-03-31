@@ -7,12 +7,15 @@ namespace Mainlayer;
 use GuzzleHttp\Client;
 use Mainlayer\Resources\AnalyticsResource;
 use Mainlayer\Resources\ApiKeysResource;
+use Mainlayer\Resources\AuthResource;
 use Mainlayer\Resources\CouponsResource;
 use Mainlayer\Resources\DiscoverResource;
 use Mainlayer\Resources\EntitlementsResource;
 use Mainlayer\Resources\InvoicesResource;
 use Mainlayer\Resources\PaymentsResource;
 use Mainlayer\Resources\ResourcesResource;
+use Mainlayer\Resources\SubscriptionsResource;
+use Mainlayer\Resources\VendorsResource;
 use Mainlayer\Resources\WebhooksResource;
 
 /**
@@ -21,15 +24,18 @@ use Mainlayer\Resources\WebhooksResource;
  * Instantiate this class once with your API key and access all
  * Mainlayer features through its resource properties.
  *
- * @property-read ResourcesResource    $resources    Manage billable resources.
- * @property-read PaymentsResource     $payments     Initiate and inspect payments.
+ * @property-read AuthResource        $auth         User authentication (register, login).
+ * @property-read VendorsResource     $vendors      Vendor registration with wallet.
+ * @property-read ResourcesResource   $resources    Manage billable resources.
+ * @property-read PaymentsResource    $payments     Initiate and inspect payments.
+ * @property-read SubscriptionsResource $subscriptions Manage recurring subscriptions.
  * @property-read EntitlementsResource $entitlements Check access for payer wallets.
- * @property-read DiscoverResource     $discover     Search the public marketplace.
- * @property-read AnalyticsResource    $analytics    View revenue and usage analytics.
- * @property-read WebhooksResource     $webhooks     Manage webhook subscriptions.
- * @property-read CouponsResource      $coupons      Create and list discount coupons.
- * @property-read InvoicesResource     $invoices     Retrieve account invoices.
- * @property-read ApiKeysResource      $apiKeys      Manage API keys.
+ * @property-read DiscoverResource    $discover     Search the public marketplace.
+ * @property-read AnalyticsResource   $analytics    View revenue and usage analytics.
+ * @property-read WebhooksResource    $webhooks     Manage webhook subscriptions.
+ * @property-read CouponsResource     $coupons      Create and list discount coupons.
+ * @property-read InvoicesResource    $invoices     Retrieve account invoices.
+ * @property-read ApiKeysResource     $apiKeys      Manage API keys.
  *
  * @example
  * $client = new \Mainlayer\MainlayerClient('ml_your_api_key');
@@ -44,8 +50,11 @@ use Mainlayer\Resources\WebhooksResource;
  */
 class MainlayerClient
 {
+    public readonly AuthResource $auth;
+    public readonly VendorsResource $vendors;
     public readonly ResourcesResource $resources;
     public readonly PaymentsResource $payments;
+    public readonly SubscriptionsResource $subscriptions;
     public readonly EntitlementsResource $entitlements;
     public readonly DiscoverResource $discover;
     public readonly AnalyticsResource $analytics;
@@ -79,8 +88,11 @@ class MainlayerClient
 
         $this->http = new HttpClient($apiKey, $options, $guzzle);
 
+        $this->auth = new AuthResource($this->http);
+        $this->vendors = new VendorsResource($this->http);
         $this->resources = new ResourcesResource($this->http);
         $this->payments = new PaymentsResource($this->http);
+        $this->subscriptions = new SubscriptionsResource($this->http);
         $this->entitlements = new EntitlementsResource($this->http);
         $this->discover = new DiscoverResource($this->http);
         $this->analytics = new AnalyticsResource($this->http);

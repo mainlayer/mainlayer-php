@@ -7,10 +7,11 @@ declare(strict_types=1);
  *
  * Demonstrates recurring subscription billing:
  *   1. Create a subscription resource
- *   2. Process a subscription payment
- *   3. Check entitlement expiry
- *   4. Handle renewal
- *   5. Cancel (delete resource)
+ *   2. Create monthly and annual subscription plans
+ *   3. Approve a subscription for a buyer
+ *   4. Check entitlement status
+ *   5. List active subscriptions
+ *   6. Cancel subscription
  *
  * Run: MAINLAYER_API_KEY=ml_xxx php examples/subscription_example.php
  */
@@ -33,90 +34,100 @@ try {
     echo "Creating subscription resource...\n";
 
     $resource = $client->resources->create([
-        'slug'         => 'pro-data-feed-monthly',
-        'type'         => 'api',
-        'price_usdc'   => 9.99,
-        'fee_model'    => 'subscription',
-        'description'  => 'Professional real-time data feed — billed monthly.',
-        'callback_url' => 'https://your-service.example.com/mainlayer/subscription',
+        'slug'        => 'premium-analytics-' . time(),
+        'type'        => 'api',
+        'price_usdc'  => 0.01,
+        'fee_model'   => 'subscription',
+        'description' => 'Premium analytics dashboard with monthly billing',
     ]);
 
     $resourceId = $resource['id'];
-    echo "Subscription resource created: {$resourceId}\n";
-    echo "Plan: {$resource['slug']} @ \${$resource['price_usdc']}/month\n";
+    echo "Subscription resource created: {$resourceId}\n\n";
 
     // -------------------------------------------------------------------------
-    // 2. Process initial subscription payment
+    // 2. Create subscription plans
     // -------------------------------------------------------------------------
-    echo "\nProcessing initial subscription payment...\n";
+    echo "Creating subscription plans...\n";
 
-    $payment = $client->payments->create([
+    $monthlyPlan = $client->resources->createPlan($resourceId, [
+        'interval'       => 'month',
+        'interval_count' => 1,
+        'price_usdc'     => 29.99,
+    ]);
+    echo "Monthly Plan created: {$monthlyPlan['id']} (\$29.99/month)\n";
+
+    $annualPlan = $client->resources->createPlan($resourceId, [
+        'interval'       => 'year',
+        'interval_count' => 1,
+        'price_usdc'     => 299.99,
+    ]);
+    echo "Annual Plan created: {$annualPlan['id']} (\$299.99/year)\n\n";
+
+    // -------------------------------------------------------------------------
+    // 3. Approve a subscription for a buyer
+    // -------------------------------------------------------------------------
+    echo "Approving monthly subscription for buyer...\n";
+
+    $subscription = $client->subscriptions->approve([
         'resource_id'  => $resourceId,
+        'plan_id'      => $monthlyPlan['id'],
         'payer_wallet' => $payerWallet,
     ]);
 
-    echo "Payment {$payment['id']}: {$payment['status']}\n";
+    $subscriptionId = $subscription['id'];
+    echo "Subscription approved: {$subscriptionId}\n";
+    echo "  Status: {$subscription['status']}\n";
+    echo "  Next billing: {$subscription['next_billing_date']}\n\n";
 
     // -------------------------------------------------------------------------
-    // 3. Check entitlement and expiry
+    // 4. Check entitlement status
     // -------------------------------------------------------------------------
-    echo "\nChecking subscription entitlement...\n";
+    echo "Checking subscription entitlement...\n";
 
-    $entitlementData = $client->entitlements->check($resourceId, $payerWallet);
-    $entitlement     = Entitlement::fromArray(array_merge($entitlementData, [
-        'resource_id'  => $resourceId,
-        'payer_wallet' => $payerWallet,
-    ]));
-
-    if ($entitlement->hasAccess) {
-        echo "Active subscription: YES\n";
-
-        if ($entitlement->expiresAt !== null) {
-            echo "Renews before: {$entitlement->expiresAt}\n";
-
-            $daysUntilRenewal = (int) ceil((strtotime($entitlement->expiresAt) - time()) / 86400);
-            echo "Days until renewal: {$daysUntilRenewal}\n";
-
-            if ($daysUntilRenewal <= 3) {
-                echo "\nRenewal due soon — processing renewal payment...\n";
-
-                $renewal = $client->payments->create([
-                    'resource_id'  => $resourceId,
-                    'payer_wallet' => $payerWallet,
-                ]);
-
-                echo "Renewal payment {$renewal['id']}: {$renewal['status']}\n";
-            }
-        } else {
-            echo "Subscription type: lifetime access\n";
-        }
-    } else {
-        echo "No active subscription found.\n";
+    $entitlement = $client->entitlements->check($resourceId, $payerWallet);
+    echo "Has Access: " . ($entitlement['has_access'] ? 'yes' : 'no') . "\n";
+    if (!empty($entitlement['expires_at'])) {
+        echo "Expires at: {$entitlement['expires_at']}\n";
     }
+    echo "\n";
 
     // -------------------------------------------------------------------------
-    // 4. List all payments for this subscription
+    // 5. Retrieve subscription details
     // -------------------------------------------------------------------------
-    echo "\nPayment history:\n";
+    echo "Subscription details:\n";
+    $subDetails = $client->subscriptions->retrieve($subscriptionId);
+    echo "  ID: {$subDetails['id']}\n";
+    echo "  Resource: {$subDetails['resource_id']}\n";
+    echo "  Plan: {$subDetails['plan_id']}\n";
+    echo "  Buyer: {$subDetails['payer_wallet']}\n";
+    echo "  Created: {$subDetails['created_at']}\n\n";
 
-    $payments = $client->payments->list(['resource_id' => $resourceId]);
-    if (empty($payments)) {
-        echo "  No payment history found.\n";
-    } else {
-        foreach ($payments as $p) {
-            $date = $p['created_at'] ?? 'unknown date';
-            echo "  - {$p['id']} | {$p['status']} | \${$p['amount']} | {$date}\n";
-        }
+    // -------------------------------------------------------------------------
+    // 6. List all active subscriptions
+    // -------------------------------------------------------------------------
+    echo "All active subscriptions:\n";
+    $subscriptions = $client->subscriptions->list();
+    foreach ($subscriptions as $sub) {
+        echo "  - {$sub['id']}: {$sub['status']} (renews {$sub['next_billing_date']})\n";
     }
+    echo "\n";
 
     // -------------------------------------------------------------------------
-    // 5. Cancel subscription (delete resource)
+    // 7. Cancel subscription
     // -------------------------------------------------------------------------
-    echo "\nCancelling subscription (deleting resource)...\n";
-    $client->resources->delete($resourceId);
-    echo "Subscription {$resourceId} cancelled.\n";
+    echo "Cancelling subscription...\n";
+    $client->subscriptions->cancel($subscriptionId);
+    echo "Subscription {$subscriptionId} cancelled!\n";
+    echo "Note: Access continues until end of billing period.\n";
 
-    echo "\nSubscription example completed successfully.\n";
+    // -------------------------------------------------------------------------
+    // 8. Verify cancellation
+    // -------------------------------------------------------------------------
+    echo "\nVerifying cancellation...\n";
+    $cancelled = $client->subscriptions->retrieve($subscriptionId);
+    echo "Status: {$cancelled['status']}\n";
+
+    echo "\nSubscription example completed successfully!\n";
 
 } catch (MainlayerException $e) {
     echo "Mainlayer error [{$e->getStatusCode()}]: {$e->getMessage()}\n";
